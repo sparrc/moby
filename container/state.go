@@ -15,7 +15,7 @@ import (
 // set the state. Container has an embed, which allows all of the
 // functions defined against State to run against Container.
 type State struct {
-	sync.Mutex
+	sync.RWMutex
 	// Note that `Running` and `Paused` are not mutually exclusive:
 	// When pausing a container (on Linux), the freezer cgroup is used to suspend
 	// all processes in the container. Freezing the process requires the process to
@@ -179,8 +179,8 @@ const (
 // otherwise, the results Err() method will return an error indicating why the
 // wait operation failed.
 func (s *State) Wait(ctx context.Context, condition WaitCondition) <-chan StateStatus {
-	s.Lock()
-	defer s.Unlock()
+	s.RLock()
+	defer s.RUnlock()
 
 	if condition == WaitConditionNotRunning && !s.Running {
 		// Buffer so we can put it in the channel now.
@@ -222,12 +222,12 @@ func (s *State) Wait(ctx context.Context, condition WaitCondition) <-chan StateS
 		case <-waitRemove:
 		}
 
-		s.Lock()
+		s.RLock()
 		result := StateStatus{
 			exitCode: s.ExitCode(),
 			err:      s.Err(),
 		}
-		s.Unlock()
+		s.RUnlock()
 
 		resultC <- result
 	}()
@@ -237,17 +237,17 @@ func (s *State) Wait(ctx context.Context, condition WaitCondition) <-chan StateS
 
 // IsRunning returns whether the running flag is set. Used by Container to check whether a container is running.
 func (s *State) IsRunning() bool {
-	s.Lock()
+	s.RLock()
 	res := s.Running
-	s.Unlock()
+	s.RUnlock()
 	return res
 }
 
 // GetPID holds the process id of a container.
 func (s *State) GetPID() int {
-	s.Lock()
+	s.RLock()
 	res := s.Pid
-	s.Unlock()
+	s.RUnlock()
 	return res
 }
 
@@ -324,17 +324,17 @@ func (s *State) SetError(err error) {
 
 // IsPaused returns whether the container is paused or not.
 func (s *State) IsPaused() bool {
-	s.Lock()
+	s.RLock()
 	res := s.Paused
-	s.Unlock()
+	s.RUnlock()
 	return res
 }
 
 // IsRestarting returns whether the container is restarting or not.
 func (s *State) IsRestarting() bool {
-	s.Lock()
+	s.RLock()
 	res := s.Restarting
-	s.Unlock()
+	s.RUnlock()
 	return res
 }
 
@@ -360,17 +360,17 @@ func (s *State) ResetRemovalInProgress() {
 // IsRemovalInProgress returns whether the RemovalInProgress flag is set.
 // Used by Container to check whether a container is being removed.
 func (s *State) IsRemovalInProgress() bool {
-	s.Lock()
+	s.RLock()
 	res := s.RemovalInProgress
-	s.Unlock()
+	s.RUnlock()
 	return res
 }
 
 // IsDead returns whether the Dead flag is set. Used by Container to check whether a container is dead.
 func (s *State) IsDead() bool {
-	s.Lock()
+	s.RLock()
 	res := s.Dead
-	s.Unlock()
+	s.RUnlock()
 	return res
 }
 
