@@ -152,21 +152,19 @@ func (daemon *Daemon) Kill(container *containerpkg.Container) error {
 		if isErrNoSuchProcess(err) {
 			return nil
 		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-
-		if status := <-container.Wait(ctx, containerpkg.WaitConditionNotRunning); status.Err() != nil {
-			return err
-		}
 	}
 
 	// 2. Wait for the process to die, in last resort, try to kill the process directly
-	if err := killProcessDirectly(container); err != nil {
-		if isErrNoSuchProcess(err) {
-			return nil
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if status := <-container.Wait(ctx, container.WaitConditionNotRunning); status.Err() != nil {
+		logrus.WithError(status.Err()).WithField("container", container.ID).Error("Container failed to exit within 10 seconds of kill - trying direct SIGKILL")
+		if err := killProcessDirectly(container); err != nil {
+			if isErrNoSuchProcess(err) {
+				return nil
+			}
+			return err
 		}
-		return err
 	}
 
 	// Wait for exit with no timeout.
