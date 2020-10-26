@@ -335,28 +335,31 @@ func (daemon *Daemon) cleanupSecretDir(c *container.Container) {
 }
 
 func killProcessDirectly(container *container.Container) error {
+	pid := container.GetPID()
 	// Ensure that we don't kill ourselves
-	if pid := container.GetPID(); pid != 0 {
-		if err := unix.Kill(pid, 9); err != nil {
-			if err != unix.ESRCH {
-				return err
-			}
-			e := errNoSuchProcess{pid, 9}
-			logrus.WithError(e).WithField("container", container.ID).Debug("no such process")
-			return e
-		}
+	if pid == 0 {
+		return nil
+	}
 
-		// In case there were some exceptions(e.g., state of zombie and D)
-		if system.IsProcessAlive(pid) {
-			// Since we can not kill a zombie pid, add zombie check here
-			isZombie, err := system.IsProcessZombie(pid)
-			if err != nil {
-				logrus.WithError(err).WithField("container", container.ID).Warn("Container state is invalid")
-				return err
-			}
-			if isZombie {
-				return errdefs.System(errors.Errorf("container %s PID %d is zombie and can not be killed. Use the --init option when creating containers to run an init inside the container that forwards signals and reaps processes", stringid.TruncateID(container.ID), pid))
-			}
+	if err := unix.Kill(pid, 9); err != nil {
+		if err != unix.ESRCH {
+			return err
+		}
+		e := errNoSuchProcess{pid, 9}
+		logrus.WithError(e).WithField("container", container.ID).Debug("no such process")
+		return e
+	}
+
+	// In case there were some exceptions(e.g., state of zombie and D)
+	if system.IsProcessAlive(pid) {
+		// Since we can not kill a zombie pid, add zombie check here
+		isZombie, err := system.IsProcessZombie(pid)
+		if err != nil {
+			logrus.WithError(err).WithField("container", container.ID).Warn("Container state is invalid")
+			return err
+		}
+		if isZombie {
+			return errdefs.System(errors.Errorf("container %s PID %d is zombie and can not be killed. Use the --init option when creating containers to run an init inside the container that forwards signals and reaps processes", stringid.TruncateID(container.ID), pid))
 		}
 	}
 	return nil

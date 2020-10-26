@@ -145,28 +145,30 @@ func (daemon *Daemon) Kill(container *containerpkg.Container) error {
 		}
 	}
 
-	// 2. Wait for the process to die, in last resort, try to kill the process directly
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if status := <-container.Wait(ctx, containerpkg.WaitConditionNotRunning); status.Err() != nil {
-		logrus.WithError(status.Err()).WithField("container", container.ID).Error("Container failed to exit within 10 seconds of kill - trying direct SIGKILL")
-		if err := killProcessDirectly(container); err != nil {
-			if isErrNoSuchProcess(err) {
-				return nil
-			}
-			return err
-		}
-	} else {
+
+	status := <-container.Wait(ctx, containerpkg.WaitConditionNotRunning)
+	if status.Err() == nil {
 		return nil
+	}
+
+	logrus.WithError(status.Err()).WithField("container", container.ID).Error("Container failed to exit within 10 seconds of kill - trying direct SIGKILL")
+
+	if err := killProcessDirectly(container); err != nil {
+		if isErrNoSuchProcess(err) {
+			return nil
+		}
+		return err
 	}
 
 	// wait for container to exit one last time, if it doesn't then kill didnt work, so return error
 	ctx2, cancel2 := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel2()
+
 	if status := <-container.Wait(ctx2, containerpkg.WaitConditionNotRunning); status.Err() != nil {
 		return errors.New("tried to kill container, but did not receive an exit event")
 	}
-
 	return nil
 }
 
