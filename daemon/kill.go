@@ -80,12 +80,14 @@ func (daemon *Daemon) killWithSignal(container *containerpkg.Container, sig int)
 	}
 
 	// TODO is this lock still necessary?
-	container.Lock()
-	defer container.Unlock()
+	// container.Lock()
+	// container.Unlock()
 
 	if !daemon.IsShuttingDown() {
 		container.HasBeenManuallyStopped = true
+		container.Lock()
 		container.CheckpointTo(daemon.containersReplica)
+		container.Unlock()
 	}
 
 	// if the container is currently restarting we do not need to send the signal

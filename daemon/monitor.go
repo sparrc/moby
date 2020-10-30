@@ -27,14 +27,15 @@ func (daemon *Daemon) setStateCounter(c *container.Container) {
 
 func (daemon *Daemon) handleContainerExit(c *container.Container, e *libcontainerdtypes.EventInfo) error {
 	// TODO Is this lock necessary before containerd.DeleteTask?
-	c.Lock()
-
-	ec, et, err := daemon.containerd.DeleteTask(context.Background(), c.ID)
+	//c.Lock()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ec, et, err := daemon.containerd.DeleteTask(ctx, c.ID)
+	cancel()
 	if err != nil {
 		logrus.WithError(err).WithField("container", c.ID).Errorf("failed to delete container from containerd")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
 	c.StreamConfig.Wait(ctx)
 	cancel()
 
@@ -55,16 +56,19 @@ func (daemon *Daemon) handleContainerExit(c *container.Container, e *libcontaine
 
 	restart, wait, err := c.RestartManager().ShouldRestart(ec, daemon.IsShuttingDown() || c.HasBeenManuallyStopped, time.Since(c.StartedAt))
 	if err == nil && restart {
+		c.Lock()
 		c.RestartCount++
+		c.Unlock()
 		c.SetRestarting(&exitStatus)
 	} else {
 		c.SetStopped(&exitStatus)
 		defer daemon.autoRemove(c)
 	}
-	defer c.Unlock() // needs to be called before autoRemove
+	//defer c.Unlock() // needs to be called before autoRemove
 
 	// cancel healthcheck here, they will be automatically
 	// restarted if/when the container is started again
+	c.Lock()
 	daemon.stopHealthchecks(c)
 	attributes := map[string]string{
 		"exitCode": strconv.Itoa(int(ec)),
@@ -73,6 +77,7 @@ func (daemon *Daemon) handleContainerExit(c *container.Container, e *libcontaine
 	daemon.Cleanup(c)
 	daemon.setStateCounter(c)
 	cpErr := c.CheckpointTo(daemon.containersReplica)
+	c.Unlock()
 
 	if err == nil && restart {
 		go func() {
@@ -87,8 +92,8 @@ func (daemon *Daemon) handleContainerExit(c *container.Container, e *libcontaine
 				}
 			}
 			if err != nil {
-				c.Lock()
 				c.SetStopped(&exitStatus)
+				c.Lock()
 				daemon.setStateCounter(c)
 				c.CheckpointTo(daemon.containersReplica)
 				c.Unlock()
