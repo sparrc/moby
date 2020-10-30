@@ -29,15 +29,15 @@ func (daemon *Daemon) ContainerStart(name string, hostConfig *containertypes.Hos
 		container.Lock()
 		defer container.Unlock()
 
-		if container.Paused {
+		if container.IsPaused() {
 			return errdefs.Conflict(errors.New("cannot start a paused container, try unpause instead"))
 		}
 
-		if container.Running {
+		if container.IsRunning() {
 			return containerNotModifiedError{running: true}
 		}
 
-		if container.RemovalInProgress || container.Dead {
+		if container.IsRemovalInProgress() || container.IsDead() {
 			return errdefs.Conflict(errors.New("container is marked for removal and cannot be started"))
 		}
 		return nil
@@ -101,14 +101,15 @@ func (daemon *Daemon) ContainerStart(name string, hostConfig *containertypes.Hos
 // begin running.
 func (daemon *Daemon) containerStart(container *container.Container, checkpoint string, checkpointDir string, resetRestartManager bool) (err error) {
 	start := time.Now()
+	// TODO this lock can be moved further down, possibly removed?
 	container.Lock()
 	defer container.Unlock()
 
-	if resetRestartManager && container.Running { // skip this check if already in restarting step and resetRestartManager==false
+	if resetRestartManager && container.IsRunning() { // skip this check if already in restarting step and resetRestartManager==false
 		return nil
 	}
 
-	if container.RemovalInProgress || container.Dead {
+	if container.IsRemovalInProgress() || container.IsDead() {
 		return errdefs.Conflict(errors.New("container is marked for removal and cannot be started"))
 	}
 

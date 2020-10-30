@@ -308,13 +308,13 @@ func (v *memdbView) transform(container *Container) *Snapshot {
 		CreatedAt:    container.Created,
 		StartedAt:    container.StartedAt,
 		Name:         container.Name,
-		Pid:          container.Pid,
+		Pid:          container.GetPID(),
 		Managed:      container.Managed,
 		ExposedPorts: make(nat.PortSet),
 		PortBindings: make(nat.PortSet),
 		Health:       health,
-		Running:      container.Running,
-		Paused:       container.Paused,
+		Running:      container.IsRunning(),
+		Paused:       container.IsPaused(),
 		ExitCode:     container.ExitCode(),
 	}
 

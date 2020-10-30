@@ -275,7 +275,7 @@ func (d *Daemon) updateHealthMonitor(c *container.Container) {
 	}
 
 	probe := getProbe(c)
-	wantRunning := c.Running && !c.Paused && probe != nil
+	wantRunning := c.IsRunning() && !c.IsPaused() && probe != nil
 	if wantRunning {
 		if stop := h.OpenMonitorChannel(); stop != nil {
 			go monitor(d, c, stop, probe)
